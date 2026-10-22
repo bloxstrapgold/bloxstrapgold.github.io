@@ -148,7 +148,7 @@ const PRICING_MATRIX = {
       1: { price: 99.99, monthlyEquiv: null, savings: 'Pay once, permanent access' },
       2: { price: 189.99, monthlyEquiv: null, savings: 'Pay once, permanent access' },
       3: { price: 349.99, monthlyEquiv: null, savings: 'Pay once, permanent access' },
-      4: { price: 2999.99, monthlyEquiv: null, savings: 'Single sovereign investment, permanent access' }
+      4: { price: 4799.99, monthlyEquiv: null, savings: '3-year equivalent permanent sovereign license' }
     }
   }
 };
@@ -463,7 +463,8 @@ function setupPayingWindow() {
 
   // REALISTIC PAYMENT PROCESSING LOGIC:
   // The button stays firmly stationary (no running away).
-  // Clicking simulates real gateway handshakes before declining with prompt's exact error string.
+  // Clicking simulates real gateway handshakes: ~35% chance card "goes through" (authorizes at $0.00),
+  // otherwise declines with prompt's exact error string.
   if (buyPayBtn) {
     buyPayBtn.addEventListener('click', (e) => {
       e.preventDefault();
@@ -489,15 +490,34 @@ function setupPayingWindow() {
         buyPayBtn.innerHTML = '<span class="btn-spinner"></span> Finalizing 3D Secure protocol...';
       }, 1800);
 
-      // Stage 4: Decline & Prompt-Mandated Error Message
+      // Stage 4: Gate resolution (~35% chance card "goes through", 65% declines)
       setTimeout(() => {
-        buyPayBtn.classList.remove('processing');
-        buyPayBtn.innerHTML = originalText;
-        buyPayBtn.style.pointerEvents = 'auto';
+        const isApproved = Math.random() < 0.35;
 
-        if (errorBanner) {
-          errorBanner.classList.add('show');
-          errorBanner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        if (isApproved) {
+          buyPayBtn.innerHTML = '✓ Payment Approved!';
+          buyPayBtn.style.background = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
+          buyPayBtn.style.borderColor = '#10b981';
+          buyPayBtn.style.color = '#ffffff';
+
+          setTimeout(() => {
+            buyPayBtn.classList.remove('processing');
+            buyPayBtn.innerHTML = originalText;
+            buyPayBtn.style.background = '';
+            buyPayBtn.style.borderColor = '';
+            buyPayBtn.style.color = '';
+            buyPayBtn.style.pointerEvents = 'auto';
+            startFreeTrial(true);
+          }, 700);
+        } else {
+          buyPayBtn.classList.remove('processing');
+          buyPayBtn.innerHTML = originalText;
+          buyPayBtn.style.pointerEvents = 'auto';
+
+          if (errorBanner) {
+            errorBanner.classList.add('show');
+            errorBanner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }
         }
       }, 2600);
     });
@@ -507,7 +527,7 @@ function setupPayingWindow() {
   // Directly beneath the pay button. Never moves. Triggers the 7-day free trial.
   if (payLaterBtn) {
     payLaterBtn.addEventListener('click', () => {
-      startFreeTrial();
+      startFreeTrial(false);
     });
   }
 
@@ -523,7 +543,7 @@ function setupPayingWindow() {
 
   if (successUnlockVaultBtn) {
     successUnlockVaultBtn.addEventListener('click', () => {
-      const generatedKey = document.getElementById('generatedLicenseKey')?.textContent || 'GOLD-7DAY-8849-F291-C84B-9102-E7A4';
+      const generatedKey = document.getElementById('generatedLicenseKey')?.textContent || 'GOLD-7DAY-ULTRA-XKW6-5TKI-WBFN';
       unlockVaultWithKey(generatedKey);
       closeCheckout();
       const vaultSec = document.getElementById('fastflags');
@@ -551,6 +571,9 @@ function openCheckout(tierId = 2, cycle = 'yearly') {
   if (buyPayBtn) {
     buyPayBtn.classList.remove('processing');
     buyPayBtn.style.pointerEvents = 'auto';
+    buyPayBtn.style.background = '';
+    buyPayBtn.style.borderColor = '';
+    buyPayBtn.style.color = '';
   }
 
   // Calculate prices
@@ -599,19 +622,40 @@ function closeCheckout() {
   document.body.style.overflow = '';
 }
 
-function generateEnterpriseKey() {
+function generateEnterpriseKey(tierId = selectedCheckoutTier) {
+  const tierTags = {
+    1: 'BASIC',
+    2: 'PLUS',
+    3: 'DELUXE',
+    4: 'ULTRA'
+  };
+  const tag = tierTags[tierId] || 'PLUS';
   const seg = () => Math.random().toString(36).substring(2, 6).toUpperCase();
-  return `GOLD-7DAY-${seg()}-${seg()}-${seg()}-${seg()}`;
+  return `GOLD-7DAY-${tag}-${seg()}-${seg()}-${seg()}`;
 }
 
-function startFreeTrial() {
+function startFreeTrial(isApproved = false) {
   const formView = document.getElementById('checkoutFormView');
   const successView = document.getElementById('checkoutSuccessView');
   const licenseKeyEl = document.getElementById('generatedLicenseKey');
   const deepLinkActivateBtn = document.getElementById('deepLinkActivateBtn');
+  const titleEl = document.getElementById('checkoutSuccessTitle');
+  const subtitleEl = document.getElementById('checkoutSuccessSubtitle');
 
-  // Generate authentic multi-segment enterprise key
-  const generatedKey = generateEnterpriseKey();
+  const meta = TIERS_META[selectedCheckoutTier] || TIERS_META[2];
+
+  // Generate tier-tagged multi-segment enterprise key
+  const generatedKey = generateEnterpriseKey(selectedCheckoutTier);
+
+  if (titleEl) {
+    titleEl.textContent = isApproved ? 'Payment Approved!' : 'Your 7-day free trial has started.';
+  }
+
+  if (subtitleEl) {
+    subtitleEl.textContent = isApproved
+      ? `Transaction authorized at $0.00. Your Bloxstrap Gold ${meta.name} license is provisioned below:`
+      : 'Download Bloxstrap Gold below and enjoy built-in multi-instance support and the gold theme.';
+  }
 
   if (licenseKeyEl) {
     licenseKeyEl.textContent = generatedKey;
